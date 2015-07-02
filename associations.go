@@ -52,6 +52,14 @@ func (d *DbMap) ToRows(ms Models) []interface{} {
 	return rows
 }
 
+type HasOneAssociation interface {
+	SetOneAssociation(Model)
+}
+
+type HasManyAssociation interface {
+	SetManyAssociation(Models)
+}
+
 type Belonger interface {
 	MappedModel
 	FKName(MappedModel) string
@@ -73,16 +81,17 @@ func (d *DbMap) GetBelongsToBuilder(m Belonger, belong MappedModel, selectStr st
 
 func (d *DbMap) GetBelongsTo(m Belonger, belong MappedModel) (MappedModel, error) {
 	ms, err := d.Query(belong, d.GetBelongsToBuilder(m, belong, ""))
-
 	if err != nil {
 		return nil, err
 	}
-
 	if len(ms) == 0 {
 		return nil, errors.New("Model is not found")
 	}
 
 	if ret, ok := ms[0].(MappedModel); ok {
+		if hoa, ok := m.(HasOneAssociation); ok {
+			hoa.SetOneAssociation(ret)
+		}
 		return ret, nil
 	}
 	return nil, errors.New("model is not 'MappedModel'")
@@ -107,7 +116,14 @@ func (d *DbMap) GetBelongingsBuilder(m HasMany, b MappedModel, selectStr string)
 
 func (d *DbMap) GetBelongings(m HasMany, b MappedModel) (Models, error) {
 	sb := d.GetBelongingsBuilder(m, b, "")
-	return d.Query(m, sb)
+	ms, err := d.Query(b, sb)
+	if err != nil {
+		return ms, err
+	}
+	if hma, ok := m.(HasManyAssociation); ok {
+		hma.SetManyAssociation(ms)
+	}
+	return ms, nil
 }
 
 type Mapping interface {
@@ -148,7 +164,19 @@ func (d *DbMap) GetOthersByMapping(m MappedModel, mapping Mapping) (Models, erro
 	if err != nil {
 		return Models{}, err
 	}
-	return d.Query(mapping.OtherModel(m), sb)
+	ms, err := d.Query(mapping.OtherModel(m), sb)
+	if err != nil {
+		return ms, err
+	}
+	if hma, ok := m.(HasManyAssociation); ok {
+		hma.SetManyAssociation(ms)
+	}
+	if hoa, ok := m.(HasOneAssociation); ok {
+		if len(ms) > 0 {
+			hoa.SetOneAssociation(ms[0])
+		}
+	}
+	return ms, nil
 }
 
 type Eq sq.Eq

@@ -37,6 +37,8 @@ func (t *dummyTracer) TraceOff() {}
 type DummyGroup struct {
 	GroupID int    `db:"group_id"`
 	Name    string `db:"name"`
+
+	Users *[]*DummyUser `db:"-"`
 }
 
 func (u DummyGroup) TableName() string {
@@ -63,11 +65,28 @@ func (g DummyGroup) FKNameInBelonging(MappedModel) string {
 func (g DummyGroup) FKInBelonging(MappedModel) interface{} {
 	return g.GroupID
 }
+func (g *DummyGroup) SetManyAssociation(ms Models) {
+	if len(ms) == 0 {
+		return
+	}
+
+	m := ms[0]
+	if _, ok := m.(*DummyUser); ok {
+		us := make([]*DummyUser, len(ms))
+		for i, m := range ms {
+			us[i] = m.(*DummyUser)
+		}
+		g.Users = &us
+	}
+}
 
 type DummyUser struct {
 	UserID  int    `db:"user_id"`
 	Name    string `db:"name"`
 	GroupID int    `db:"group_id"`
+
+	*DummyGroup `db:"-"`
+	Images      *[]*DummyImage `db:"-"`
 }
 
 func (u DummyUser) TableName() string {
@@ -93,6 +112,25 @@ func (u DummyUser) FKName(MappedModel) string {
 }
 func (u DummyUser) FK(MappedModel) interface{} {
 	return u.GroupID
+}
+func (u *DummyUser) SetOneAssociation(m Model) {
+	if g, ok := m.(*DummyGroup); ok {
+		u.DummyGroup = g
+	}
+}
+func (u *DummyUser) SetManyAssociation(ms Models) {
+	if len(ms) == 0 {
+		return
+	}
+
+	m := ms[0]
+	if _, ok := m.(*DummyImage); ok {
+		imgs := make([]*DummyImage, len(ms))
+		for i, m := range ms {
+			imgs[i] = m.(*DummyImage)
+		}
+		u.Images = &imgs
+	}
 }
 
 type DummyImage struct {
@@ -186,7 +224,7 @@ func TestCreate(t *testing.T) {
 		WithArgs(1, "John", 1).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err := dbmap.Create(&DummyUser{1, "John", 1})
+	err := dbmap.Create(&DummyUser{1, "John", 1, nil, nil})
 	a.Nil(err)
 }
 
@@ -197,7 +235,7 @@ func TestUpdate(t *testing.T) {
 		WithArgs(1, "John", 1, 1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	u := &DummyUser{1, "John", 1}
+	u := &DummyUser{1, "John", 1, nil, nil}
 	_, err := dbmap.Update(u)
 	a.Nil(err)
 }
@@ -209,7 +247,7 @@ func TestDelete(t *testing.T) {
 		WithArgs(1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	_, err := dbmap.Delete(&DummyUser{1, "John", 1})
+	_, err := dbmap.Delete(&DummyUser{1, "John", 1, nil, nil})
 	a.Nil(err)
 }
 
@@ -240,18 +278,44 @@ func TestTransaction(t *testing.T) {
 
 func TestGetBelongsToBuilder(t *testing.T) {
 	dbmap, a := _init(t)
-	sb := dbmap.GetBelongsToBuilder(DummyUser{1, "John", 1}, DummyGroup{1, "group1"}, "*")
+	sb := dbmap.GetBelongsToBuilder(DummyUser{1, "John", 1, nil, nil}, DummyGroup{1, "group1", nil}, "*")
 	sql, args, _ := sb.ToSql()
 	a.Regexp("SELECT \\* FROM groups WHERE group_id = \\?", sql)
 	a.Equal([]interface{}{1}, args)
 }
 
+func TestGetBelongsTo(t *testing.T) {
+	dbmap, a := _init(t)
+	cols := []string{"group_id", "name"}
+	sqlmock.ExpectQuery("SELECT \\* FROM groups WHERE group_id = \\?").
+		WithArgs(1).
+		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,group1"))
+
+	u := &DummyUser{1, "John", 1, nil, nil}
+	_, err := dbmap.GetBelongsTo(u, DummyGroup{})
+	a.NotNil(u.DummyGroup)
+	a.Nil(err)
+}
+
 func TestGetBelongingsBuilder(t *testing.T) {
 	dbmap, a := _init(t)
-	sb := dbmap.GetBelongingsBuilder(DummyGroup{1, "group"}, DummyUser{}, "*")
+	sb := dbmap.GetBelongingsBuilder(DummyGroup{1, "group", nil}, DummyUser{}, "*")
 	sql, args, _ := sb.ToSql()
 	a.Regexp("SELECT \\* FROM users WHERE group_id = \\?", sql)
 	a.Equal([]interface{}{1}, args)
+}
+
+func TestGetBelongings(t *testing.T) {
+	dbmap, a := _init(t)
+	cols := []string{"user_id", "name", "group_id"}
+	sqlmock.ExpectQuery("SELECT \\* FROM users WHERE group_id = \\?").
+		WithArgs(1).
+		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,John,1\n2,Taro,1\n3,Ben,1"))
+
+	g := &DummyGroup{1, "group1", nil}
+	_, err := dbmap.GetBelongings(g, DummyUser{})
+	a.NotEmpty(g.Users)
+	a.Nil(err)
 }
 
 func TestGetOthersBuilderByMapping(t *testing.T) {
@@ -268,6 +332,31 @@ func TestGetOthersBuilderByMapping(t *testing.T) {
 
 	a.Regexp("SELECT \\* FROM images WHERE image_id IN \\(\\?\\)", sql)
 	a.Equal([]interface{}{1}, args)
+}
+
+func TestGetOthersByMapping(t *testing.T) {
+	dbmap, a := _init(t)
+
+	cols := []string{"mapping_id", "user_id", "image_id"}
+	sqlmock.ExpectQuery("SELECT \\* FROM mappings WHERE user_id = (.+)").
+		WithArgs(1).
+		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,1,1\n1,1,2\n1,1,3"))
+
+	imgcols := []string{"image_id", "name", "url"}
+	sqlmock.ExpectQuery("SELECT \\* FROM images WHERE image_id IN (.+)").
+		WithArgs(1, 2, 3).
+		WillReturnRows(sqlmock.NewRows(imgcols).FromCSVString(
+		`
+1,name1,http://1
+2,name2,http://2
+3,name3,http://3
+		`))
+
+	u := &DummyUser{UserID: 1}
+	_, err := dbmap.GetOthersByMapping(u, DummyMapping{})
+	a.Nil(err)
+	a.NotNil(u.Images)
+	a.NotEmpty(u.Images)
 }
 
 func TestGet(t *testing.T) {
