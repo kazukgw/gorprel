@@ -1,6 +1,7 @@
 package gorper
 
 import (
+	"database/sql"
 	"errors"
 
 	sq "github.com/lann/squirrel"
@@ -182,15 +183,18 @@ func (d *DbMap) GetOthersByMapping(m MappedModel, mapping Mapping) (Models, erro
 type Eq sq.Eq
 
 func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
-	sql, args, err := w.ToSql()
+	q, args, err := w.ToSql()
 	if err != nil {
 		return Models{}, err
 	}
 
 	d.Tracer.TraceOn()
-	rows, err := d.DbMap.Select(model, sql, args...)
+	rows, err := d.DbMap.Select(model, q, args...)
 	d.Tracer.TraceOff()
 
+	if len(rows) == 0 {
+		err = sql.ErrNoRows
+	}
 	return d.ToModels(rows), err
 }
 
