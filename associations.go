@@ -8,7 +8,7 @@ import (
 	"gopkg.in/gorp.v1"
 )
 
-type Mapped interface {
+type MappedToTable interface {
 	SetTableMetas(tm *gorp.TableMap) *gorp.TableMap
 	TableName() string
 }
@@ -21,17 +21,11 @@ type Model interface {
 }
 
 type MappedModel interface {
-	Mapped
+	MappedToTable
 	Model
 }
 
 type Models []Model
-
-func (ms Models) Each(fn func(m Model, index int)) {
-	for i, m := range ms {
-		fn(m, i)
-	}
-}
 
 func (d *DbMap) ToModels(rows []interface{}) Models {
 	ms := make(Models, len(rows))
@@ -61,13 +55,13 @@ type HasManyAssociation interface {
 	SetManyAssociation(Models)
 }
 
-type Belonger interface {
+type Belongings interface {
 	MappedModel
 	FKName(MappedModel) string
 	FK(MappedModel) interface{}
 }
 
-func (d *DbMap) GetBelongsToBuilder(m Belonger, belong MappedModel, selectStr string) sq.SelectBuilder {
+func (d *DbMap) BelongsToBuilder(m Belongings, belong MappedModel, selectStr string) sq.SelectBuilder {
 	var slct string
 	slct = selectStr
 	if selectStr == "" {
@@ -80,8 +74,8 @@ func (d *DbMap) GetBelongsToBuilder(m Belonger, belong MappedModel, selectStr st
 	return sq.Select(slct).From(t).Where(sq.Eq{kname: k})
 }
 
-func (d *DbMap) GetBelongsTo(m Belonger, belong MappedModel) (MappedModel, error) {
-	ms, err := d.Query(belong, d.GetBelongsToBuilder(m, belong, ""))
+func (d *DbMap) BelongsTo(m Belongings, belong MappedModel) (MappedModel, error) {
+	ms, err := d.Query(belong, d.BelongsToBuilder(m, belong, ""))
 	if err != nil {
 		return nil, err
 	}
@@ -100,23 +94,23 @@ func (d *DbMap) GetBelongsTo(m Belonger, belong MappedModel) (MappedModel, error
 
 type HasMany interface {
 	MappedModel
-	FKNameInBelonging(MappedModel) string
-	FKInBelonging(MappedModel) interface{}
+	FKNameInBelongings(MappedModel) string
+	FKInBelongings(MappedModel) interface{}
 }
 
-func (d *DbMap) GetBelongingsBuilder(m HasMany, b MappedModel, selectStr string) sq.SelectBuilder {
+func (d *DbMap) HasManyBuilder(m HasMany, b MappedModel, selectStr string) sq.SelectBuilder {
 	var slct string
 	slct = selectStr
 	if selectStr == "" {
 		slct = "*"
 	}
 
-	kname := m.FKNameInBelonging(b)
-	return sq.Select(slct).From(b.TableName()).Where(sq.Eq{kname: m.FKInBelonging(b)})
+	kname := m.FKNameInBelongings(b)
+	return sq.Select(slct).From(b.TableName()).Where(sq.Eq{kname: m.FKInBelongings(b)})
 }
 
-func (d *DbMap) GetBelongings(m HasMany, b MappedModel) (Models, error) {
-	sb := d.GetBelongingsBuilder(m, b, "")
+func (d *DbMap) HasMany(m HasMany, b MappedModel) (Models, error) {
+	sb := d.HasManyBuilder(m, b, "")
 	ms, err := d.Query(b, sb)
 	if err != nil {
 		return ms, err
@@ -133,7 +127,7 @@ type Mapping interface {
 	OtherKey(MappedModel) interface{}
 }
 
-func (d *DbMap) GetOthersBuilderByMapping(m MappedModel, mapping Mapping, selectStr string) (sq.SelectBuilder, error) {
+func (d *DbMap) ManyToManyBuilder(m MappedModel, mapping Mapping, selectStr string) (sq.SelectBuilder, error) {
 	var slct string
 	slct = selectStr
 	if selectStr == "" {
@@ -160,8 +154,8 @@ func (d *DbMap) GetOthersBuilderByMapping(m MappedModel, mapping Mapping, select
 	return sq.Select(slct).From(other.TableName()).Where(sq.Eq{kname: keys}), nil
 }
 
-func (d *DbMap) GetOthersByMapping(m MappedModel, mapping Mapping) (Models, error) {
-	sb, err := d.GetOthersBuilderByMapping(m, mapping, "")
+func (d *DbMap) ManyToMany(m MappedModel, mapping Mapping) (Models, error) {
+	sb, err := d.ManyToManyBuilder(m, mapping, "")
 	if err != nil {
 		return Models{}, err
 	}
@@ -180,8 +174,6 @@ func (d *DbMap) GetOthersByMapping(m MappedModel, mapping Mapping) (Models, erro
 	return ms, nil
 }
 
-type Eq sq.Eq
-
 func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
 	q, args, err := w.ToSql()
 	if err != nil {
@@ -199,23 +191,40 @@ func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
 }
 
 func (d *DbMap) Get(holderHasKey MappedModel) error {
-	q := "select * from " + holderHasKey.TableName() + " where " + holderHasKey.KeyName() + " = ?;"
+	q, args, err := sq.Select("*").From(holderHasKey.TableName()).
+		Where(holderHasKey.KeyName()+" = ?", holderHasKey.Key()).ToSql()
+	if err != nil {
+		return err
+	}
 	d.Tracer.TraceOn()
-	err := d.DbMap.SelectOne(holderHasKey, q, holderHasKey.Key())
+	err = d.DbMap.SelectOne(holderHasKey, q, args...)
 	d.Tracer.TraceOff()
 	return err
 }
 
-func (d *DbMap) GetBuilderWithEq(m MappedModel, eq Eq, selectStr string) sq.SelectBuilder {
-	var slct string
-	slct = selectStr
-	if selectStr == "" {
-		slct = "*"
+func (d *DbMap) FindWhere(holder MappedModel, eq map[string]interface{}) error {
+	q, args, err := sq.Select("*").From(holder.TableName()).
+		Where(sq.Eq(eq)).ToSql()
+	if err != nil {
+		return err
 	}
-
-	return sq.Select(slct).From(m.TableName()).Where(sq.Eq(eq))
+	d.Tracer.TraceOn()
+	err = d.DbMap.SelectOne(holder, q, args...)
+	d.Tracer.TraceOff()
+	return err
 }
 
-func (d *DbMap) GetWithEq(m MappedModel, eq Eq) (Models, error) {
-	return d.Query(m, d.GetBuilderWithEq(m, eq, ""))
+func (d *DbMap) WhereBuilder(
+	m MappedModel,
+	eq map[string]interface{},
+	selectStr string,
+) sq.SelectBuilder {
+	if selectStr == "" {
+		selectStr = "*"
+	}
+	return sq.Select(selectStr).From(m.TableName()).Where(sq.Eq(eq))
+}
+
+func (d *DbMap) Where(m MappedModel, eq map[string]interface{}) (Models, error) {
+	return d.Query(m, d.WhereBuilder(m, eq, ""))
 }

@@ -1,6 +1,7 @@
 package gorper
 
 import (
+	sq "github.com/lann/squirrel"
 	"gopkg.in/gorp.v1"
 )
 
@@ -18,7 +19,7 @@ type Tracer interface {
 func New(dbmap *gorp.DbMap, tracer Tracer, tablemaps map[string]interface{}) *DbMap {
 	for k, m := range tablemaps {
 		tm := dbmap.AddTableWithName(m, k)
-		tms, ok := m.(Mapped)
+		tms, ok := m.(MappedToTable)
 		if ok {
 			_ = tms.SetTableMetas(tm)
 		}
@@ -86,4 +87,29 @@ func (d *DbMap) Transaction(fn func(tr *gorp.Transaction) error) error {
 		panic(cerr.Error())
 	}
 	return nil
+}
+
+func (d *DbMap) Exists(m MappedModel) bool {
+	table := m.TableName()
+	keyname := m.KeyName()
+	key := m.Key()
+	count, err := d.SelectInt("select count(*) from "+table+" where "+keyname+" = ?", key)
+	if err != nil {
+		return false
+	}
+	return count > 0
+}
+
+func (d *DbMap) CountBuilder(m MappedModel, eq map[string]interface{}) sq.SelectBuilder {
+	return sq.Select("count(*)").From(m.TableName()).Where(sq.Eq(eq))
+}
+
+func (d *DbMap) Count(m MappedModel, eq map[string]interface{}) (int, error) {
+	sb := d.CountBuilder(m, eq)
+	q, args, err := sb.ToSql()
+	if err != nil {
+		return 0, err
+	}
+	count, err := d.SelectInt(q, args...)
+	return int(count), nil
 }

@@ -59,10 +59,10 @@ func (u DummyGroup) IsNew() bool {
 func (u DummyGroup) IsZero() bool {
 	return u == DummyGroup{}
 }
-func (g DummyGroup) FKNameInBelonging(MappedModel) string {
+func (g DummyGroup) FKNameInBelongings(MappedModel) string {
 	return "group_id"
 }
-func (g DummyGroup) FKInBelonging(MappedModel) interface{} {
+func (g DummyGroup) FKInBelongings(MappedModel) interface{} {
 	return g.GroupID
 }
 func (g *DummyGroup) SetManyAssociation(ms Models) {
@@ -276,9 +276,9 @@ func TestTransaction(t *testing.T) {
 	a.Error(err, "DB should rollback when error returned from func that as transation arg.")
 }
 
-func TestGetBelongsToBuilder(t *testing.T) {
+func TestBelongsToBuilder(t *testing.T) {
 	dbmap, a := _init(t)
-	sb := dbmap.GetBelongsToBuilder(DummyUser{1, "John", 1, nil, nil}, DummyGroup{1, "group1", nil}, "*")
+	sb := dbmap.BelongsToBuilder(DummyUser{1, "John", 1, nil, nil}, DummyGroup{1, "group1", nil}, "*")
 	sql, args, _ := sb.ToSql()
 	a.Regexp("SELECT \\* FROM groups WHERE group_id = \\?", sql)
 	a.Equal([]interface{}{1}, args)
@@ -292,20 +292,20 @@ func TestGetBelongsTo(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,group1"))
 
 	u := &DummyUser{1, "John", 1, nil, nil}
-	_, err := dbmap.GetBelongsTo(u, DummyGroup{})
+	_, err := dbmap.BelongsTo(u, DummyGroup{})
 	a.NotNil(u.DummyGroup)
 	a.Nil(err)
 }
 
-func TestGetBelongingsBuilder(t *testing.T) {
+func TestHasManyBuilder(t *testing.T) {
 	dbmap, a := _init(t)
-	sb := dbmap.GetBelongingsBuilder(DummyGroup{1, "group", nil}, DummyUser{}, "*")
+	sb := dbmap.HasManyBuilder(DummyGroup{1, "group", nil}, DummyUser{}, "*")
 	sql, args, _ := sb.ToSql()
 	a.Regexp("SELECT \\* FROM users WHERE group_id = \\?", sql)
 	a.Equal([]interface{}{1}, args)
 }
 
-func TestGetBelongings(t *testing.T) {
+func TestHasMany(t *testing.T) {
 	dbmap, a := _init(t)
 	cols := []string{"user_id", "name", "group_id"}
 	sqlmock.ExpectQuery("SELECT \\* FROM users WHERE group_id = \\?").
@@ -313,12 +313,12 @@ func TestGetBelongings(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,John,1\n2,Taro,1\n3,Ben,1"))
 
 	g := &DummyGroup{1, "group1", nil}
-	_, err := dbmap.GetBelongings(g, DummyUser{})
+	_, err := dbmap.HasMany(g, DummyUser{})
 	a.NotEmpty(g.Users)
 	a.Nil(err)
 }
 
-func TestGetOthersBuilderByMapping(t *testing.T) {
+func TestManyToManyBuilder(t *testing.T) {
 	dbmap, a := _init(t)
 
 	cols := []string{"mapping_id", "user_id", "image_id"}
@@ -326,7 +326,7 @@ func TestGetOthersBuilderByMapping(t *testing.T) {
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,1,1"))
 
-	sb, err := dbmap.GetOthersBuilderByMapping(&DummyUser{UserID: 1}, DummyMapping{}, "*")
+	sb, err := dbmap.ManyToManyBuilder(&DummyUser{UserID: 1}, DummyMapping{}, "*")
 	a.Nil(err)
 	sql, args, _ := sb.ToSql()
 
@@ -353,7 +353,7 @@ func TestGetOthersByMapping(t *testing.T) {
 		`))
 
 	u := &DummyUser{UserID: 1}
-	_, err := dbmap.GetOthersByMapping(u, DummyMapping{})
+	_, err := dbmap.ManyToMany(u, DummyMapping{})
 	a.Nil(err)
 	a.NotNil(u.Images)
 	a.NotEmpty(u.Images)
@@ -362,7 +362,7 @@ func TestGetOthersByMapping(t *testing.T) {
 func TestGet(t *testing.T) {
 	dbmap, a := _init(t)
 	cols := []string{"user_id", "name", "group_id"}
-	sqlmock.ExpectQuery("select \\* from users where user_id = \\?;").
+	sqlmock.ExpectQuery("SELECT \\* FROM users WHERE user_id = \\?").
 		WithArgs(1).
 		WillReturnRows(sqlmock.NewRows(cols).FromCSVString("1,John,1"))
 
@@ -370,9 +370,9 @@ func TestGet(t *testing.T) {
 	a.Nil(err)
 }
 
-func TestGetBuilderWithEq(t *testing.T) {
+func TestWhereBuilder(t *testing.T) {
 	dbmap, a := _init(t)
-	sb := dbmap.GetBuilderWithEq(DummyUser{}, Eq{"user_id": 1}, "*")
+	sb := dbmap.WhereBuilder(DummyUser{}, map[string]interface{}{"user_id": 1}, "*")
 	sql, args, _ := sb.ToSql()
 	a.Regexp("SELECT \\* FROM users WHERE user_id = (.+)", sql)
 	a.Equal([]interface{}{1}, args)
