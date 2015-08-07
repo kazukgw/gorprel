@@ -5,7 +5,6 @@ import "gopkg.in/gorp.v1"
 type DbMap struct {
 	*gorp.DbMap
 	Tracer
-	TableMaps map[string]interface{}
 }
 
 type Tracer interface {
@@ -13,18 +12,10 @@ type Tracer interface {
 	TraceOff()
 }
 
-func New(dbmap *gorp.DbMap, tracer Tracer, tablemaps map[string]interface{}) *DbMap {
-	for k, m := range tablemaps {
-		tm := dbmap.AddTableWithName(m, k)
-		tms, ok := m.(MappedToTable)
-		if ok {
-			_ = tms.SetTableMetas(tm)
-		}
-	}
+func New(dbmap *gorp.DbMap, tracer Tracer) *DbMap {
 	return &DbMap{
-		DbMap:     dbmap,
-		Tracer:    tracer,
-		TableMaps: tablemaps,
+		DbMap:  dbmap,
+		Tracer: tracer,
 	}
 }
 
@@ -40,14 +31,6 @@ func (d *DbMap) Update(list ...interface{}) (int64, error) {
 	i, err := d.DbMap.Update(list...)
 	d.Tracer.TraceOff()
 	return i, err
-}
-
-func (d *DbMap) Save(m Model) error {
-	if m.IsNew() {
-		return d.Create(m)
-	}
-	_, err := d.Update(m)
-	return err
 }
 
 func (d *DbMap) Delete(list ...interface{}) (int64, error) {

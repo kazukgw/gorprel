@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	sq "github.com/lann/squirrel"
+	sq "github.com/Masterminds/squirrel"
 )
 
 func TestGet(t *testing.T) {

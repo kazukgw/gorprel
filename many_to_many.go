@@ -1,14 +1,14 @@
 package gorprel
 
-import sq "github.com/lann/squirrel"
+import sq "github.com/Masterminds/squirrel"
 
 type Mapping interface {
-	MappedModel
-	OtherModel(MappedModel) MappedModel
-	OtherKey(MappedModel) interface{}
+	Model
+	OtherModel(Model) Model
+	OtherKey(Model) interface{}
 }
 
-func (d *DbMap) ManyToManyBuilder(m MappedModel, mapping Mapping, selectStr string) (sq.SelectBuilder, error) {
+func (d *DbMap) ManyToManyBuilder(m Model, mapping Mapping, selectStr string) (sq.SelectBuilder, error) {
 	var slct string
 	slct = selectStr
 	if selectStr == "" {
@@ -35,7 +35,7 @@ func (d *DbMap) ManyToManyBuilder(m MappedModel, mapping Mapping, selectStr stri
 	return sq.Select(slct).From(other.TableName()).Where(sq.Eq{kname: keys}), nil
 }
 
-func (d *DbMap) ManyToMany(m MappedModel, mapping Mapping) (Models, error) {
+func (d *DbMap) ManyToMany(m Model, mapping Mapping) (Models, error) {
 	sb, err := d.ManyToManyBuilder(m, mapping, "")
 	if err != nil {
 		return Models{}, err

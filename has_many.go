@@ -1,19 +1,19 @@
 package gorprel
 
-import sq "github.com/lann/squirrel"
+import sq "github.com/Masterminds/squirrel"
 
 type HasManySetter interface {
 	SetHasMany(Models)
 }
 
 type HasMany interface {
-	MappedModel
+	Model
 	HasManySetter
-	FKNameInBelongings(MappedModel) string
-	FKInBelongings(MappedModel) interface{}
+	FKNameInBelongings(Model) string
+	FKInBelongings(Model) interface{}
 }
 
-func (d *DbMap) HasManyBuilder(m HasMany, b MappedModel, selectStr string) sq.SelectBuilder {
+func (d *DbMap) HasManyBuilder(m HasMany, b Model, selectStr string) sq.SelectBuilder {
 	var slct string
 	slct = selectStr
 	if selectStr == "" {
@@ -24,7 +24,7 @@ func (d *DbMap) HasManyBuilder(m HasMany, b MappedModel, selectStr string) sq.Se
 	return sq.Select(slct).From(b.TableName()).Where(sq.Eq{kname: m.FKInBelongings(b)})
 }
 
-func (d *DbMap) HasMany(m HasMany, b MappedModel) (Models, error) {
+func (d *DbMap) HasMany(m HasMany, b Model) (Models, error) {
 	sb := d.HasManyBuilder(m, b, "")
 	ms, err := d.Query(b, sb)
 	if err != nil {

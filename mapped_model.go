@@ -3,15 +3,13 @@ package gorprel
 import (
 	"database/sql"
 
-	sq "github.com/lann/squirrel"
-	"gopkg.in/gorp.v1"
+	sq "github.com/Masterminds/squirrel"
 )
 
 type Model interface {
+	TableName() string
 	KeyName() string
 	Key() interface{}
-	IsNew() bool
-	IsZero() bool
 }
 
 type Models []Model
@@ -36,25 +34,7 @@ func (d *DbMap) ToRows(ms Models) []interface{} {
 	return rows
 }
 
-type MappedToTable interface {
-	SetTableMetas(tm *gorp.TableMap) *gorp.TableMap
-	TableName() string
-}
-
-type MappedModel interface {
-	MappedToTable
-	Model
-}
-
-type HasOneAssociation interface {
-	SetOneAssociation(Model)
-}
-
-type HasManyAssociation interface {
-	SetManyAssociation(Models)
-}
-
-func (d *DbMap) FindOrCreate(holder MappedModel, key interface{}) error {
+func (d *DbMap) FindOrCreate(holder Model, key interface{}) error {
 	d.Tracer.TraceOn()
 	q := "select * from " + holder.TableName() + " where " + holder.KeyName() + " = ?;"
 	err := d.DbMap.SelectOne(holder, q, key)
@@ -65,7 +45,7 @@ func (d *DbMap) FindOrCreate(holder MappedModel, key interface{}) error {
 	return nil
 }
 
-func (d *DbMap) Exists(m MappedModel) bool {
+func (d *DbMap) Exists(m Model) bool {
 	table := m.TableName()
 	keyname := m.KeyName()
 	key := m.Key()
@@ -76,11 +56,11 @@ func (d *DbMap) Exists(m MappedModel) bool {
 	return count > 0
 }
 
-func (d *DbMap) CountBuilder(m MappedModel, eq map[string]interface{}) sq.SelectBuilder {
+func (d *DbMap) CountBuilder(m Model, eq map[string]interface{}) sq.SelectBuilder {
 	return sq.Select("count(*)").From(m.TableName()).Where(sq.Eq(eq))
 }
 
-func (d *DbMap) Count(m MappedModel, eq map[string]interface{}) (int, error) {
+func (d *DbMap) Count(m Model, eq map[string]interface{}) (int, error) {
 	sb := d.CountBuilder(m, eq)
 	q, args, err := sb.ToSql()
 	if err != nil {
@@ -106,7 +86,7 @@ func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
 	return d.ToModels(rows), err
 }
 
-func (d *DbMap) Get(holderHasKey MappedModel) error {
+func (d *DbMap) Get(holderHasKey Model) error {
 	q, args, err := sq.Select("*").From(holderHasKey.TableName()).
 		Where(holderHasKey.KeyName()+" = ?", holderHasKey.Key()).ToSql()
 	if err != nil {
@@ -118,7 +98,7 @@ func (d *DbMap) Get(holderHasKey MappedModel) error {
 	return err
 }
 
-func (d *DbMap) FindWhere(holder MappedModel, eq map[string]interface{}) error {
+func (d *DbMap) FindWhere(holder Model, eq map[string]interface{}) error {
 	q, args, err := sq.Select("*").From(holder.TableName()).
 		Where(sq.Eq(eq)).ToSql()
 	if err != nil {
@@ -131,7 +111,7 @@ func (d *DbMap) FindWhere(holder MappedModel, eq map[string]interface{}) error {
 }
 
 func (d *DbMap) WhereBuilder(
-	m MappedModel,
+	m Model,
 	eq map[string]interface{},
 	selectStr string,
 ) sq.SelectBuilder {
@@ -141,6 +121,6 @@ func (d *DbMap) WhereBuilder(
 	return sq.Select(selectStr).From(m.TableName()).Where(sq.Eq(eq))
 }
 
-func (d *DbMap) Where(m MappedModel, eq map[string]interface{}) (Models, error) {
+func (d *DbMap) Where(m Model, eq map[string]interface{}) (Models, error) {
 	return d.Query(m, d.WhereBuilder(m, eq, ""))
 }

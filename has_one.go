@@ -1,38 +1,34 @@
 package gorprel
 
-import (
-	"errors"
-
-	sq "github.com/lann/squirrel"
-)
+import sq "github.com/Masterminds/squirrel"
 
 type HasOneSetter interface {
 	SetHasOne(Model)
 }
 
 type HasOne interface {
-	MappedModel
+	Model
 	HasOneSetter
-	KeyNameInOne(MappedModel) string
-	KeyInOne(MappedModel) interface{}
+	FKName(Model) string
+	FK(Model) interface{}
 }
 
-func (d *DbMap) HasOneBuilder(m HasOne, one MappedModel, selectStr string) sq.SelectBuilder {
+func (d *DbMap) HasOneBuilder(m HasOne, theOne Model, selectStr string) sq.SelectBuilder {
 	if selectStr == "" {
 		selectStr = "*"
 	}
-	t := one.TableName()
-	kname := m.KeyNameInOne(one)
-	k := m.KeyInOne(one)
+	t := theOne.TableName()
+	kname := m.FKName(theOne)
+	k := m.FK(theOne)
 	return sq.Select(selectStr).From(t).Where(sq.Eq{kname: k})
 }
 
-func (d *DbMap) HasOne(m HasOne, one MappedModel) (MappedModel, error) {
-	ms, err := d.Query(m, d.HasOneBuilder(m, one, ""))
+func (d *DbMap) HasOne(m HasOne, one Model) (Model, error) {
+	ms, err := d.Query(one, d.HasOneBuilder(m, one, ""))
 	if err != nil {
 		return nil, err
 	}
-	mm := ms[0].(MappedModel)
+	mm := ms[0].(Model)
 	m.SetHasOne(mm)
 	return mm, nil
 }
