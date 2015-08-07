@@ -1,9 +1,6 @@
-package gorper
+package gorprel
 
-import (
-	sq "github.com/lann/squirrel"
-	"gopkg.in/gorp.v1"
-)
+import "gopkg.in/gorp.v1"
 
 type DbMap struct {
 	*gorp.DbMap
@@ -53,17 +50,6 @@ func (d *DbMap) Save(m Model) error {
 	return err
 }
 
-func (d *DbMap) FindOrCreate(holder MappedModel, key interface{}) error {
-	d.Tracer.TraceOn()
-	q := "select * from " + holder.TableName() + " where " + holder.KeyName() + " = ?;"
-	err := d.DbMap.SelectOne(holder, q, key)
-	d.Tracer.TraceOff()
-	if err != nil {
-		return d.Create(holder)
-	}
-	return nil
-}
-
 func (d *DbMap) Delete(list ...interface{}) (int64, error) {
 	d.Tracer.TraceOn()
 	i, err := d.DbMap.Delete(list...)
@@ -87,29 +73,4 @@ func (d *DbMap) Transaction(fn func(tr *gorp.Transaction) error) error {
 		panic(cerr.Error())
 	}
 	return nil
-}
-
-func (d *DbMap) Exists(m MappedModel) bool {
-	table := m.TableName()
-	keyname := m.KeyName()
-	key := m.Key()
-	count, err := d.SelectInt("select count(*) from "+table+" where "+keyname+" = ?", key)
-	if err != nil {
-		return false
-	}
-	return count > 0
-}
-
-func (d *DbMap) CountBuilder(m MappedModel, eq map[string]interface{}) sq.SelectBuilder {
-	return sq.Select("count(*)").From(m.TableName()).Where(sq.Eq(eq))
-}
-
-func (d *DbMap) Count(m MappedModel, eq map[string]interface{}) (int, error) {
-	sb := d.CountBuilder(m, eq)
-	q, args, err := sb.ToSql()
-	if err != nil {
-		return 0, err
-	}
-	count, err := d.SelectInt(q, args...)
-	return int(count), nil
 }
