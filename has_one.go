@@ -32,15 +32,7 @@ func (d *DbMap) HasOne(m HasOne, one MappedModel) (MappedModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ms) == 0 {
-		return nil, errors.New("Model is not found")
-	}
-
-	if ret, ok := ms[0].(MappedModel); ok {
-		if hoa, ok := m.(HasOneSetter); ok {
-			hoa.SetHasOne(ret)
-		}
-		return ret, nil
-	}
-	return nil, errors.New("model is not 'MappedModel'")
+	mm := ms[0].(MappedModel)
+	m.SetHasOne(mm)
+	return mm, nil
 }

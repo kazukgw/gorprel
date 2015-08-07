@@ -32,13 +32,7 @@ func (d *DbMap) BelongsTo(m Belongings, belong MappedModel) (MappedModel, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(ms) == 0 {
-		return nil, errors.New("Model is not found")
-	}
-
-	if ret, ok := ms[0].(MappedModel); ok {
-		m.SetBelongsTo(ret)
-		return ret, nil
-	}
-	return nil, errors.New("model is not 'MappedModel'")
+	mm := ms[0].(MappedModel)
+	m.SetBelongsTo(mm)
+	return mm, nil
 }
