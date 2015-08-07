@@ -36,8 +36,8 @@ func (d *DbMap) ToRows(ms Models) []interface{} {
 
 func (d *DbMap) FindOrCreate(holder Model, key interface{}) error {
 	d.Tracer.TraceOn()
-	q := "select * from " + holder.TableName() + " where " + holder.KeyName() + " = ?;"
-	err := d.DbMap.SelectOne(holder, q, key)
+	q, args, _ := sq.Select("*").From(holder.TableName()).Where(sq.Eq{holder.KeyName(): key}).ToSql()
+	err := d.DbMap.SelectOne(holder, q, args...)
 	d.Tracer.TraceOff()
 	if err != nil {
 		return d.Create(holder)
@@ -49,7 +49,8 @@ func (d *DbMap) Exists(m Model) bool {
 	table := m.TableName()
 	keyname := m.KeyName()
 	key := m.Key()
-	count, err := d.SelectInt("select count(*) from "+table+" where "+keyname+" = ?", key)
+	q, args, _ := sq.Select("*").From(table).Where(sq.Eq{kename: key}).ToSql()
+	count, err := d.SelectInt(q, args...)
 	if err != nil {
 		return false
 	}
@@ -88,7 +89,7 @@ func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
 
 func (d *DbMap) Get(holderHasKey Model) error {
 	q, args, err := sq.Select("*").From(holderHasKey.TableName()).
-		Where(holderHasKey.KeyName()+" = ?", holderHasKey.Key()).ToSql()
+		Where(sq.Eq{holderHasKey.KeyName(): holderHasKey.Key()}).ToSql()
 	if err != nil {
 		return err
 	}
