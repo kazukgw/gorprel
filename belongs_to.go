@@ -17,7 +17,7 @@ func (d *DbMap) BelongsToBuilder(m Belongings, belong Model, selectStr string) s
 	if selectStr == "" {
 		selectStr = "*"
 	}
-	t := belong.TableName()
+	t := d.TableName(belong)
 	kname := m.FKName(belong)
 	k := m.FK(belong)
 	return sq.Select(selectStr).From(t).Where(sq.Eq{kname: k})

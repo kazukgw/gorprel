@@ -17,7 +17,7 @@ func (d *DbMap) HasOneBuilder(m HasOne, theOne Model, selectStr string) sq.Selec
 	if selectStr == "" {
 		selectStr = "*"
 	}
-	t := theOne.TableName()
+	t := d.TableName(theOne)
 	kname := m.FKName(theOne)
 	k := m.FK(theOne)
 	return sq.Select(selectStr).From(t).Where(sq.Eq{kname: k})

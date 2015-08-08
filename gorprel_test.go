@@ -25,7 +25,7 @@ var testTablemaps = map[string]interface{}{
 	"images":   testImage{},
 	"tags":     testTag{},
 	"mappings": testMapping{},
-	"author":   testAuthor{},
+	"authors":  testAuthor{},
 }
 
 type TableOptionSetter interface {
@@ -35,15 +35,15 @@ type TableOptionSetter interface {
 func testInit(t *testing.T) (*DbMap, *assert.Assertions) {
 	a := assert.New(t)
 	gorpdbmap, err := connectToMock()
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
 	for k, m := range testTablemaps {
 		tm := gorpdbmap.AddTableWithName(m, k)
 		tms, ok := m.(TableOptionSetter)
 		if ok {
 			_ = tms.SetTableOptions(tm)
 		}
-	}
-	if err != nil {
-		t.Error(err)
 	}
 	return New(gorpdbmap, new(testTracer)), a
 }
@@ -61,9 +61,6 @@ type testGroup struct {
 	TestUsers *[]*testUser `db:"-"`
 }
 
-func (g testGroup) TableName() string {
-	return "groups"
-}
 func (g testGroup) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "group_id")
 }
@@ -104,9 +101,6 @@ type testUser struct {
 	TestImages *[]*testImage `db:"-"`
 }
 
-func (u testUser) TableName() string {
-	return "users"
-}
 func (u testUser) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "user_id")
 }
@@ -153,9 +147,6 @@ type testImage struct {
 	TestAuthor *testAuthor `db:"-"`
 }
 
-func (i testImage) TableName() string {
-	return "images"
-}
 func (i testImage) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "image_id")
 }
@@ -182,9 +173,6 @@ type testTag struct {
 	TestImages *[]*testImage `db:"-"`
 }
 
-func (tag testTag) TableName() string {
-	return "tags"
-}
 func (tag testTag) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "tag_id")
 }
@@ -211,9 +199,6 @@ type testMapping struct {
 	ImageID   int `db:"image_id"`
 }
 
-func (mp testMapping) TableName() string {
-	return "mappings"
-}
 func (mp testMapping) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "mapping_id")
 }
@@ -224,19 +209,19 @@ func (mp testMapping) Key() interface{} {
 	return mp.MappingID
 }
 func (mp testMapping) OtherModel(m Model) Model {
-	switch m.TableName() {
-	case "tags":
+	switch m.(type) {
+	case testTag, *testTag:
 		return testImage{}
-	case "images":
+	case testImage, *testImage:
 		return testTag{}
 	}
 	panic("mapping model not has other model")
 }
 func (mp testMapping) OtherKey(m Model) interface{} {
-	switch m.TableName() {
-	case "tags":
+	switch m.(type) {
+	case testTag, *testTag:
 		return mp.ImageID
-	case "images":
+	case testImage, *testImage:
 		return mp.TagID
 	}
 	panic("mapping model not has other model")
@@ -247,9 +232,6 @@ type testAuthor struct {
 	Name     string `db:"name"`
 }
 
-func (a testAuthor) TableName() string {
-	return "authors"
-}
 func (a testAuthor) SetTableOptions(tm *gorp.TableMap) *gorp.TableMap {
 	return tm.SetKeys(false, "author_id")
 }

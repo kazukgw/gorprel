@@ -2,12 +2,24 @@ package gorprel
 
 import (
 	"database/sql"
+	"reflect"
 
 	sq "github.com/Masterminds/squirrel"
 )
 
+func (d *DbMap) TableName(v Model) string {
+	vtype := reflect.TypeOf(v)
+	if vtype.Kind() == reflect.Ptr {
+		vtype = vtype.Elem()
+	}
+	tm, err := d.TableFor(vtype, false)
+	if err != nil {
+		panic(err.Error())
+	}
+	return tm.TableName
+}
+
 type Model interface {
-	TableName() string
 	KeyName() string
 	Key() interface{}
 }
@@ -36,7 +48,7 @@ func (d *DbMap) ToRows(ms Models) []interface{} {
 
 func (d *DbMap) FindOrCreate(holder Model, key interface{}) error {
 	d.Tracer.TraceOn()
-	q, args, _ := sq.Select("*").From(holder.TableName()).Where(sq.Eq{holder.KeyName(): key}).ToSql()
+	q, args, _ := sq.Select("*").From(d.TableName(holder)).Where(sq.Eq{holder.KeyName(): key}).ToSql()
 	err := d.DbMap.SelectOne(holder, q, args...)
 	d.Tracer.TraceOff()
 	if err != nil {
@@ -46,10 +58,10 @@ func (d *DbMap) FindOrCreate(holder Model, key interface{}) error {
 }
 
 func (d *DbMap) Exists(m Model) bool {
-	table := m.TableName()
+	table := d.TableName(m)
 	keyname := m.KeyName()
 	key := m.Key()
-	q, args, _ := sq.Select("*").From(table).Where(sq.Eq{kename: key}).ToSql()
+	q, args, _ := sq.Select("*").From(table).Where(sq.Eq{keyname: key}).ToSql()
 	count, err := d.SelectInt(q, args...)
 	if err != nil {
 		return false
@@ -58,7 +70,7 @@ func (d *DbMap) Exists(m Model) bool {
 }
 
 func (d *DbMap) CountBuilder(m Model, eq map[string]interface{}) sq.SelectBuilder {
-	return sq.Select("count(*)").From(m.TableName()).Where(sq.Eq(eq))
+	return sq.Select("count(*)").From(d.TableName(m)).Where(sq.Eq(eq))
 }
 
 func (d *DbMap) Count(m Model, eq map[string]interface{}) (int, error) {
@@ -88,7 +100,7 @@ func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) (Models, error) {
 }
 
 func (d *DbMap) Get(holderHasKey Model) error {
-	q, args, err := sq.Select("*").From(holderHasKey.TableName()).
+	q, args, err := sq.Select("*").From(d.TableName(holderHasKey)).
 		Where(sq.Eq{holderHasKey.KeyName(): holderHasKey.Key()}).ToSql()
 	if err != nil {
 		return err
@@ -100,7 +112,7 @@ func (d *DbMap) Get(holderHasKey Model) error {
 }
 
 func (d *DbMap) FindWhere(holder Model, eq map[string]interface{}) error {
-	q, args, err := sq.Select("*").From(holder.TableName()).
+	q, args, err := sq.Select("*").From(d.TableName(holder)).
 		Where(sq.Eq(eq)).ToSql()
 	if err != nil {
 		return err
@@ -119,7 +131,7 @@ func (d *DbMap) WhereBuilder(
 	if selectStr == "" {
 		selectStr = "*"
 	}
-	return sq.Select(selectStr).From(m.TableName()).Where(sq.Eq(eq))
+	return sq.Select(selectStr).From(d.TableName(m)).Where(sq.Eq(eq))
 }
 
 func (d *DbMap) Where(m Model, eq map[string]interface{}) (Models, error) {

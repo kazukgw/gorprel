@@ -17,7 +17,7 @@ func (d *DbMap) ManyToManyBuilder(m Model, mapping Mapping, selectStr string) (s
 	other := mapping.OtherModel(m)
 	kname := m.KeyName()
 	k := m.Key()
-	w := sq.Select("*").From(mapping.TableName()).Where(sq.Eq{kname: k})
+	w := sq.Select("*").From(d.TableName(mapping)).Where(sq.Eq{kname: k})
 
 	rows, err := d.Query(mapping, w)
 	if err != nil {
@@ -32,7 +32,7 @@ func (d *DbMap) ManyToManyBuilder(m Model, mapping Mapping, selectStr string) (s
 	}
 
 	kname = other.KeyName()
-	return sq.Select(slct).From(other.TableName()).Where(sq.Eq{kname: keys}), nil
+	return sq.Select(slct).From(d.TableName(other)).Where(sq.Eq{kname: keys}), nil
 }
 
 func (d *DbMap) ManyToMany(m Model, mapping Mapping) (Models, error) {

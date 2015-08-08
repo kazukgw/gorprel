@@ -21,7 +21,7 @@ func (d *DbMap) HasManyBuilder(m HasMany, b Model, selectStr string) sq.SelectBu
 	}
 
 	kname := m.FKNameInBelongings(b)
-	return sq.Select(slct).From(b.TableName()).Where(sq.Eq{kname: m.FKInBelongings(b)})
+	return sq.Select(slct).From(d.TableName(b)).Where(sq.Eq{kname: m.FKInBelongings(b)})
 }
 
 func (d *DbMap) HasMany(m HasMany, b Model) (Models, error) {
