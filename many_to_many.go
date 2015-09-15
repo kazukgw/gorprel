@@ -35,10 +35,10 @@ func (d *DbMap) ManyToManyBuilder(m Model, mapping Mapping, selectStr string) (s
 	return sq.Select(slct).From(d.TableName(other)).Where(sq.Eq{kname: keys}), nil
 }
 
-func (d *DbMap) ManyToMany(m Model, mapping Mapping) (Models, error) {
+func (d *DbMap) ManyToMany(m Model, mapping Mapping) ([]interface{}, error) {
 	sb, err := d.ManyToManyBuilder(m, mapping, "")
 	if err != nil {
-		return Models{}, err
+		return []interface{}{}, err
 	}
 	ms, err := d.Query(mapping.OtherModel(m), sb)
 	if err != nil {
@@ -49,7 +49,7 @@ func (d *DbMap) ManyToMany(m Model, mapping Mapping) (Models, error) {
 	}
 	if hoa, ok := m.(HasOneSetter); ok {
 		if len(ms) > 0 {
-			hoa.SetHasOne(ms[0])
+			hoa.SetHasOne(ms[0].(Model))
 		}
 	}
 	return ms, nil

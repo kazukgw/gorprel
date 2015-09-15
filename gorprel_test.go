@@ -76,7 +76,7 @@ func (g testGroup) FKNameInBelongings(Model) string {
 func (g testGroup) FKInBelongings(Model) interface{} {
 	return g.GroupID
 }
-func (g *testGroup) SetHasMany(ms Models) {
+func (g *testGroup) SetHasMany(ms []interface{}) {
 	if len(ms) == 0 {
 		return
 	}
@@ -121,7 +121,7 @@ func (u *testUser) SetBelongsTo(m Model) {
 		u.TestGroup = g
 	}
 }
-func (u *testUser) SetHasMany(ms Models) {
+func (u *testUser) SetHasMany(ms []interface{}) {
 	if len(ms) == 0 {
 		return
 	}
@@ -182,7 +182,7 @@ func (tag testTag) KeyName() string {
 func (tag testTag) Key() interface{} {
 	return tag.TagID
 }
-func (tag *testTag) SetHasMany(ms Models) {
+func (tag *testTag) SetHasMany(ms []interface{}) {
 	images := make([]*testImage, 0)
 	for _, m := range ms {
 		if image, ok := m.(*testImage); ok {
