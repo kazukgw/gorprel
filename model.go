@@ -1,7 +1,6 @@
 package gorprel
 
 import (
-	"database/sql"
 	"reflect"
 
 	sq "github.com/Masterminds/squirrel"
@@ -71,9 +70,6 @@ func (d *DbMap) Query(model interface{}, w sq.SelectBuilder) ([]interface{}, err
 	rows, err := d.DbMap.Select(model, q, args...)
 	d.Tracer.TraceOff()
 
-	if len(rows) == 0 {
-		err = sql.ErrNoRows
-	}
 	return rows, err
 }
 
